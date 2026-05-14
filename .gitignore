@@ -1,0 +1,17 @@
+venv/
+__pycache__/
+*.pyc
+
+# Models
+*.pt
+
+# Images
+*.jpg
+*.jpeg
+*.png
+
+# YOLO outputs
+runs/
+
+# Dataset
+datasets/
