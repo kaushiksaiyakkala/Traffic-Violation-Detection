@@ -10,10 +10,6 @@ from paddleocr import PaddleOCR
 from scipy.optimize import linear_sum_assignment
 
 
-# ============================================================
-# ENV FIXES
-# ============================================================
-
 warnings.filterwarnings("ignore")
 
 os.environ["FLAGS_enable_pir_in_executor"] = "0"
@@ -26,17 +22,12 @@ logging.getLogger("paddle").setLevel(logging.ERROR)
 logging.disable(logging.WARNING)
 
 
-# ============================================================
-# CONFIG
-# ============================================================
-
 PERSON_CLASS = 0
 BICYCLE_CLASS = 1
 MOTORCYCLE_CLASS = 3
 
 CONF_THRESH = 0.30
 MAX_RIDERS = 2
-
 OVERLAP_THRESH = 0.15
 
 HELMET_CONF = 0.35
@@ -49,38 +40,14 @@ PLATE_PAD_PX = 8
 USE_HUNGARIAN = True
 DEBUG_HELMET = False
 
-INDIAN_STATES = {
-    "AN", "AP", "AR", "AS", "BR", "CH", "CG", "DD", "DL", "DN",
-    "GA", "GJ", "HR", "HP", "JK", "JH", "KA", "KL", "LA", "LD",
-    "MP", "MH", "MN", "ML", "MZ", "NL", "OD", "PY", "PB", "RJ",
-    "SK", "TN", "TS", "TR", "UK", "UP", "WB",
-}
-
-PLATE_RE = re.compile(
-    r"^([A-Z]{2})(\d{1,2})([A-Z]{1,3})(\d{1,4})$"
-)
-
-
-# ============================================================
-# MAIN CLASS
-# ============================================================
 
 class TrafficViolationDetector:
 
     def __init__(self, model_dir="./models"):
 
-        # ----------------------------------------------------
-        # Person + bike detection model
-        # Consistent with pipeline(2).py
-        # ----------------------------------------------------
-
         self.det_model = YOLO(
             os.path.join(model_dir, "yolo11l.pt")
         )
-
-        # ----------------------------------------------------
-        # Helmet models
-        # ----------------------------------------------------
 
         self.helmet_models = []
 
@@ -107,17 +74,9 @@ class TrafficViolationDetector:
                     "model": model
                 })
 
-        # ----------------------------------------------------
-        # Plate detector
-        # ----------------------------------------------------
-
         self.plate_model = YOLO(
             os.path.join(model_dir, "best.pt")
         )
-
-        # ----------------------------------------------------
-        # OCR
-        # ----------------------------------------------------
 
         self.ocr = PaddleOCR(
             use_angle_cls=True,
@@ -138,18 +97,7 @@ class TrafficViolationDetector:
         return re.sub(r"[^A-Z0-9]", "", text.upper())
 
     def format_plate(self, text):
-        text = self.clean_text(text)
-        match = PLATE_RE.match(text)
-
-        if not match:
-            return text
-
-        state, district, series, number = match.groups()
-
-        if state not in INDIAN_STATES:
-            return text
-
-        return f"{state}{district}{series}{number}"
+        return self.clean_text(text)
 
     def preprocess_plate(self, crop):
         gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
@@ -217,7 +165,6 @@ class TrafficViolationDetector:
 
     # ========================================================
     # BIKE FILTER
-    # Consistent with pipeline(2).py
     # ========================================================
 
     def is_real_motorcycle(self, box, img_w, img_h):
@@ -534,11 +481,6 @@ class TrafficViolationDetector:
 
             img_h, img_w = image.shape[:2]
 
-            # ------------------------------------------------
-            # Person + bike detection
-            # Consistent with pipeline(2).py
-            # ------------------------------------------------
-
             TARGET_W = 1280
             effective_conf = CONF_THRESH
             det_image = image
@@ -605,10 +547,6 @@ class TrafficViolationDetector:
                         "conf": conf
                     })
 
-            # ------------------------------------------------
-            # Helmet detections on full image
-            # ------------------------------------------------
-
             helmet_detections = []
 
             if self.helmet_models:
@@ -617,10 +555,6 @@ class TrafficViolationDetector:
                     img_w,
                     img_h
                 )
-
-            # ------------------------------------------------
-            # Rider-bike assignment
-            # ------------------------------------------------
 
             if USE_HUNGARIAN:
                 assignment = self.hungarian_assign(
@@ -639,10 +573,6 @@ class TrafficViolationDetector:
 
             violations = []
 
-            # ------------------------------------------------
-            # Process each detected bike
-            # ------------------------------------------------
-
             for i, bike in enumerate(bikes):
                 bx1, by1, bx2, by2 = bike["box"]
 
@@ -655,7 +585,6 @@ class TrafficViolationDetector:
                 rider_count = min(len(rider_boxes), 3)
 
                 helmet_violations = 0
-                helmet_statuses = []
 
                 for rider_idx, rider_box in enumerate(rider_boxes):
                     if self.helmet_models:
@@ -668,18 +597,12 @@ class TrafficViolationDetector:
                     else:
                         status = "helmet"
 
-                    helmet_statuses.append(status)
-
                     if status == "no_helmet":
                         helmet_violations += 1
 
-                # Skip non-violating vehicles
+                # Only output violations
                 if rider_count <= MAX_RIDERS and helmet_violations == 0:
                     continue
-
-                # ------------------------------------------------
-                # License plate OCR
-                # ------------------------------------------------
 
                 bike_crop = image[by1:by2, bx1:bx2]
                 license_plate = ""
@@ -751,10 +674,18 @@ class TrafficViolationDetector:
                 except Exception:
                     pass
 
+                violation_types = []
+
+                if rider_count > MAX_RIDERS:
+                    violation_types.append("triple_riding")
+
+                if helmet_violations > 0:
+                    violation_types.append("no_helmet")
+
                 violations.append({
+                    "violation_types": violation_types,
                     "num_riders": int(rider_count),
                     "helmet_violations": int(helmet_violations),
-                    "helmet_statuses": helmet_statuses,
                     "license_plate": str(license_plate)
                 })
 
@@ -768,10 +699,6 @@ class TrafficViolationDetector:
                 "violations": []
             }
 
-
-# ============================================================
-# OPTIONAL DIRECT TEST
-# ============================================================
 
 if __name__ == "__main__":
     image_path = r"C:\Users\kaush\Downloads\Traffic-Violation-Detection\test.jpg"
