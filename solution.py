@@ -241,7 +241,7 @@ class TrafficViolationDetector:
             for i, bike in enumerate(bikes):
                 overlap = self.box_overlap_ratio(person["box"], bike["box"])
 
-                if self.is_eligible(person["box"], bike["box"], img_w, img_h):
+                if self.is_eligible(person["box"], bike["box"]):
                     cost[j, i] = 1.0 - overlap
 
         person_indices, bike_indices = linear_sum_assignment(cost)
@@ -488,6 +488,7 @@ class TrafficViolationDetector:
                     "violations": []
                 }
 
+
             img_h, img_w = image.shape[:2]
 
             TARGET_W = 1280
@@ -594,6 +595,7 @@ class TrafficViolationDetector:
                 rider_count = len(rider_boxes)
 
                 helmet_violations = 0
+                rider_statuses = []
 
                 for rider_idx, rider_box in enumerate(rider_boxes):
                     if self.helmet_models:
@@ -606,13 +608,14 @@ class TrafficViolationDetector:
                     else:
                         status = "unknown"
 
+                    rider_statuses.append((rider_box, status))
+
                     if status == "no_helmet":
                         helmet_violations += 1
 
                 is_triple = rider_count > MAX_RIDERS
                 is_no_helmet = helmet_violations > 0
 
-                # Only output violations
                 if not is_triple and not is_no_helmet:
                     continue
 
