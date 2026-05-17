@@ -141,6 +141,7 @@ class TrafficViolationDetector:
 
         for line in lines:
             text, conf = line[1]
+
             if conf > 0.30:
                 texts.append(text)
 
@@ -165,6 +166,7 @@ class TrafficViolationDetector:
 
     # ========================================================
     # BIKE FILTER
+    # Consistent with pipeline(2).py
     # ========================================================
 
     def is_real_motorcycle(self, box, img_w, img_h):
@@ -453,6 +455,13 @@ class TrafficViolationDetector:
                     if det["std_cls"] == "no_helmet" and det["conf"] > fb_no:
                         fb_no = det["conf"]
 
+            if DEBUG_HELMET and fb_matched:
+                det_str = ", ".join(
+                    f"{d['name']}={d['conf']:.2f}"
+                    for d in fb_matched
+                )
+                print(f"Rider [{rider_idx}] bike-box fallback: {det_str}")
+
             if fb_no >= NO_HELMET_MIN_CONF and fb_no > fb_with:
                 return "no_helmet"
 
@@ -464,7 +473,7 @@ class TrafficViolationDetector:
                     return "helmet"
                 return "no_helmet"
 
-        return "helmet"
+        return "unknown"
 
     # ========================================================
     # MAIN PREDICT
@@ -595,13 +604,16 @@ class TrafficViolationDetector:
                             rider_idx
                         )
                     else:
-                        status = "helmet"
+                        status = "unknown"
 
                     if status == "no_helmet":
                         helmet_violations += 1
 
+                is_triple = rider_count > MAX_RIDERS
+                is_no_helmet = helmet_violations > 0
+
                 # Only output violations
-                if rider_count <= MAX_RIDERS and helmet_violations == 0:
+                if not is_triple and not is_no_helmet:
                     continue
 
                 bike_crop = image[by1:by2, bx1:bx2]
@@ -676,10 +688,10 @@ class TrafficViolationDetector:
 
                 violation_types = []
 
-                if rider_count > MAX_RIDERS:
+                if is_triple:
                     violation_types.append("triple_riding")
 
-                if helmet_violations > 0:
+                if is_no_helmet:
                     violation_types.append("no_helmet")
 
                 violations.append({
@@ -701,7 +713,7 @@ class TrafficViolationDetector:
 
 
 if __name__ == "__main__":
-    image_path = r"C:\Users\kaush\Downloads\Traffic-Violation-Detection\test.jpg"
+    image_path = "test.jpg"
 
     detector = TrafficViolationDetector(model_dir="./models")
     result = detector.predict(image_path)
