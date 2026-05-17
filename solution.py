@@ -124,6 +124,24 @@ class TrafficViolationDetector:
             use_gpu=False,
             show_log=False,
             use_mp=False,
+
+            det_model_dir=os.path.join(
+                model_dir,
+                "paddleocr",
+                "det"
+            ),
+
+            rec_model_dir=os.path.join(
+                model_dir,
+                "paddleocr",
+                "rec"
+            ),
+
+            cls_model_dir=os.path.join(
+                model_dir,
+                "paddleocr",
+                "cls"
+            )
         )
 
     # ========================================================
