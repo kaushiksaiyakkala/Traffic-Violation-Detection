@@ -1,0 +1,5 @@
+opencv-python==4.6.0
+numpy==1.26.4
+ultralytics==8.4.51
+paddleocr==2.7.3
+paddlepaddle==2.6.1
