@@ -582,7 +582,7 @@ class TrafficViolationDetector:
                     for j in person_indices
                 ]
 
-                rider_count = min(len(rider_boxes), 3)
+                rider_count = len(rider_boxes)
 
                 helmet_violations = 0
 
